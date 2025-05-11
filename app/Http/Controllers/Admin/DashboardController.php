@@ -2,14 +2,13 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-class DashboardController extends Controller
+class DashboardController extends AdminController
 {
     public function index()
     {
@@ -41,7 +40,7 @@ class DashboardController extends Controller
                 'topProducts'
             ));
         } catch (\Exception $e) {
-            return back()->with('error', 'Terjadi kesalahan: ' . $e->getMessage());
+            return $this->handleError($e, 'Terjadi kesalahan saat memuat dashboard');
         }
     }
 }

@@ -22,6 +22,14 @@ return new class extends Migration
             $table->string('digiflazz_id')->nullable();
             $table->boolean('active')->default(true);
             $table->timestamps();
+
+            // Add indexes for frequently queried columns
+            $table->index('name');
+            $table->index('category');
+            $table->index('brand');
+            $table->index('active');
+            $table->index('digiflazz_id');
+            $table->index(['name', 'brand', 'category']);
         });
     }
 

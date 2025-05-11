@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
-use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Services\DigiflazzService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Http\Controllers\Controller;
 
 class ProductController extends Controller
 {
@@ -17,28 +17,66 @@ class ProductController extends Controller
         $this->digiflazzService = $digiflazzService;
     }
 
-    public function index(Request $request)
+    public function index()
     {
-        $query = Product::query();
-
-        // Filter berdasarkan pencarian
-        if ($request->has('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%');
-        }
-
-        // Filter berdasarkan kategori
-        if ($request->has('category') && $request->category !== '') {
-            $query->where('category', $request->category);
-        }
-
-        // Filter berdasarkan status
-        if ($request->has('status')) {
-            $query->where('active', $request->status === 'active');
-        }
-
-        $products = $query->latest()->paginate(10);
-
+        $products = Product::latest()->paginate(10);
         return view('admin.products.index', compact('products'));
+    }
+
+    public function create()
+    {
+        return view('admin.products.create');
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'category' => 'required|string|max:255',
+            'image_url' => 'nullable|url',
+            'sku' => 'required|string|unique:products',
+            'stock' => 'required|integer|min:0',
+            'status' => 'required|in:active,inactive'
+        ]);
+
+        Product::create($validated);
+
+        return redirect()->route('admin.products.index')
+            ->with('success', 'Product created successfully.');
+    }
+
+    public function edit(Product $product)
+    {
+        return view('admin.products.edit', compact('product'));
+    }
+
+    public function update(Request $request, Product $product)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'price' => 'required|numeric|min:0',
+            'category' => 'required|string|max:255',
+            'image_url' => 'nullable|url',
+            'sku' => 'required|string|unique:products,sku,' . $product->id,
+            'stock' => 'required|integer|min:0',
+            'status' => 'required|in:active,inactive'
+        ]);
+
+        $product->update($validated);
+
+        return redirect()->route('admin.products.index')
+            ->with('success', 'Product updated successfully.');
+    }
+
+    public function destroy(Product $product)
+    {
+        $product->delete();
+
+        return redirect()->route('admin.products.index')
+            ->with('success', 'Product deleted successfully.');
     }
 
     public function show(Product $product)
@@ -46,79 +84,21 @@ class ProductController extends Controller
         return response()->json($product);
     }
 
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'category' => 'required|string|in:game,pulsa,pln',
-            'brand' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
-        ]);
-
-        try {
-            $product = Product::create([
-                'name' => $validated['name'],
-                'category' => $validated['category'],
-                'brand' => $validated['brand'],
-                'price' => $validated['price'],
-                'active' => true,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Produk berhasil ditambahkan',
-                'product' => $product
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error creating product: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat menambahkan produk'
-            ], 500);
-        }
-    }
-
-    public function update(Request $request, Product $product)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'category' => 'required|string|in:game,pulsa,pln',
-            'brand' => 'required|string|max:255',
-            'price' => 'required|numeric|min:0',
-        ]);
-
-        try {
-            $product->update($validated);
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Produk berhasil diperbarui',
-                'product' => $product
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Error updating product: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Terjadi kesalahan saat memperbarui produk'
-            ], 500);
-        }
-    }
-
     public function toggleStatus(Product $product)
     {
         try {
-            $product->update(['active' => !$product->active]);
+            $product->update(['status' => $product->status === 'active' ? 'inactive' : 'active']);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Status produk berhasil diubah',
+                'message' => 'Product status updated successfully',
                 'product' => $product
             ]);
         } catch (\Exception $e) {
-            Log::error('Error toggling product status: ' . $e->getMessage());
+            Log::error('Error updating product status: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat mengubah status produk'
+                'message' => 'Failed to update product status'
             ], 500);
         }
     }
@@ -130,26 +110,27 @@ class ProductController extends Controller
 
             foreach ($products as $productData) {
                 Product::updateOrCreate(
-                    ['digiflazz_id' => $productData['buyer_sku_code']],
+                    ['sku' => $productData['buyer_sku_code']],
                     [
                         'name' => $productData['product_name'],
                         'category' => $this->mapCategory($productData['category']),
-                        'brand' => $productData['brand'],
                         'price' => $productData['price'],
-                        'active' => true,
+                        'status' => 'active',
+                        'stock' => 999, // Default stock for digital products
+                        'description' => $productData['description'] ?? null,
                     ]
                 );
             }
 
-        return response()->json([
+            return response()->json([
                 'success' => true,
-                'message' => 'Sinkronisasi produk berhasil'
+                'message' => 'Products synchronized successfully'
             ]);
         } catch (\Exception $e) {
             Log::error('Error syncing products: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Terjadi kesalahan saat sinkronisasi produk'
+                'message' => 'Failed to synchronize products'
             ], 500);
         }
     }

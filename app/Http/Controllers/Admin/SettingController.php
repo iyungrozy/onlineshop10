@@ -3,41 +3,50 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\Setting;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Cache;
 
 class SettingController extends Controller
 {
     public function index()
     {
-        $settings = Setting::all()->groupBy('group');
+        $settings = [
+            'site_name' => config('app.name'),
+            'site_description' => config('app.description', ''),
+            'contact_email' => config('app.contact_email', ''),
+            'contact_phone' => config('app.contact_phone', ''),
+            'whatsapp_number' => config('app.whatsapp_number', ''),
+            'facebook_url' => config('app.facebook_url', ''),
+            'instagram_url' => config('app.instagram_url', ''),
+            'twitter_url' => config('app.twitter_url', ''),
+        ];
+
         return view('admin.settings.index', compact('settings'));
     }
 
     public function update(Request $request)
     {
-        foreach ($request->settings as $key => $value) {
-            $setting = Setting::where('key', $key)->first();
+        $validated = $request->validate([
+            'site_name' => 'required|string|max:255',
+            'site_description' => 'nullable|string',
+            'contact_email' => 'required|email|max:255',
+            'contact_phone' => 'required|string|max:20',
+            'whatsapp_number' => 'required|string|max:20',
+            'facebook_url' => 'nullable|url|max:255',
+            'instagram_url' => 'nullable|url|max:255',
+            'twitter_url' => 'nullable|url|max:255',
+        ]);
 
-            if ($setting && $setting->type === 'file' && $request->hasFile("settings.{$key}")) {
-                // Hapus file lama jika ada
-                if ($setting->value) {
-                    Storage::delete($setting->value);
-                }
-
-                // Upload file baru
-                $path = $request->file("settings.{$key}")->store('settings');
-                $value = $path;
-            }
-
-            if ($setting) {
-                $setting->update(['value' => $value]);
-            }
+        // Update settings in config
+        foreach ($validated as $key => $value) {
+            config(['app.' . $key => $value]);
         }
 
+        // Clear cache
+        Cache::forget('settings');
+
         return redirect()->route('admin.settings.index')
-            ->with('success', 'Pengaturan berhasil diperbarui');
+            ->with('success', 'Settings updated successfully.');
     }
 
     public function seed()

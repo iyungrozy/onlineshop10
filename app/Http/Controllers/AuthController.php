@@ -51,7 +51,13 @@ class AuthController extends Controller
 
         if (Auth::attempt($request->only('email', 'password'))) {
             $request->session()->regenerate();
-            return redirect()->intended('home');
+            
+            $user = Auth::user();
+            if ($user->isAdmin()) {
+                return redirect()->intended(route('admin.dashboard'));
+            }
+            
+            return redirect()->intended(route('home'));
         }
 
         throw ValidationException::withMessages([

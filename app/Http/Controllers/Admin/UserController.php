@@ -39,21 +39,16 @@ class UserController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
-            'phone' => 'required|string|max:20',
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:admin,user',
+            'role' => 'required|in:admin,user'
         ]);
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'phone' => $validated['phone'],
-            'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
-        ]);
+        $validated['password'] = Hash::make($validated['password']);
+
+        User::create($validated);
 
         return redirect()->route('admin.users.index')
-            ->with('success', 'User berhasil ditambahkan');
+            ->with('success', 'User created successfully.');
     }
 
     public function edit(User $user)
@@ -65,33 +60,28 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
-            'phone' => 'required|string|max:20',
-            'role' => 'required|in:admin,user',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => 'nullable|string|min:8|confirmed',
+            'role' => 'required|in:admin,user'
         ]);
 
-        if ($request->filled('password')) {
-            $request->validate([
-                'password' => 'required|string|min:8|confirmed',
-            ]);
-            $validated['password'] = Hash::make($request->password);
+        if ($validated['password']) {
+            $validated['password'] = Hash::make($validated['password']);
+        } else {
+            unset($validated['password']);
         }
 
         $user->update($validated);
 
         return redirect()->route('admin.users.index')
-            ->with('success', 'User berhasil diperbarui');
+            ->with('success', 'User updated successfully.');
     }
 
     public function destroy(User $user)
     {
-        if ($user->id === auth()->id()) {
-            return back()->with('error', 'Tidak dapat menghapus akun sendiri');
-        }
-
         $user->delete();
 
         return redirect()->route('admin.users.index')
-            ->with('success', 'User berhasil dihapus');
+            ->with('success', 'User deleted successfully.');
     }
 }
